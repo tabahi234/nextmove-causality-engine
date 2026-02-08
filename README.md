@@ -1,5 +1,5 @@
 # 🔮 NextMove - AI Causality Engine
-### 🏆 Submission for Gemini hackathon/google deepmind 2026
+### 🏆 Submission for Gemini Hackathon / Google DeepMind 2026
 
 **NextMove** is a fate simulator that stops you from making bad decisions. 
 
@@ -21,4 +21,3 @@ graph TD
     D -- API Error --> E[Gemini 1.5 Flash Backup]
     C --> F[Diplomatic Output]
     D --> G[Reality Check Output]
-    Built with ❤️ and too much caffeine by Faiq Subhani.
