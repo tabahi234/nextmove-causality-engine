@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextMove | Fate Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; overflow-x: hidden; }
+        .glass-panel { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .active-tab { background: rgba(139, 92, 246, 0.2); border-color: #8b5cf6; color: #fff; }
+        #mobileSidebar { transition: transform 0.3s ease-in-out; }
+        .sidebar-open { transform: translateX(0) !important; }
+        .sidebar-closed { transform: translateX(-100%); }
+    </style>
+</head>
+<body class="text-white min-h-screen p-4 flex gap-6 justify-center">
+
+    <button onclick="toggleSidebar()" class="lg:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded border border-gray-600">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+    </button>
+
+    <div id="mobileSidebar" class="fixed inset-y-0 left-0 w-64 bg-[#0f172a] z-40 p-4 border-r border-gray-800 transform -translate-x-full lg:translate-x-0 lg:static lg:block lg:bg-transparent lg:border-none lg:glass-panel lg:h-[85vh] lg:sticky lg:top-10 flex flex-col">
+        <div class="flex justify-between items-center mb-6 mt-12 lg:mt-0">
+            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Past Scenarios</h3>
+            <button onclick="toggleSidebar()" class="lg:hidden text-gray-400">✕</button>
+        </div>
+        <div id="historyList" class="flex-1 overflow-y-auto space-y-2 text-sm text-gray-400 custom-scrollbar"></div>
+        <button onclick="clearHistory()" class="mt-4 text-xs text-red-400 hover:text-red-300 w-full text-left py-2">Clear All History</button>
+    </div>
+
+    <div class="w-full max-w-2xl mt-12 lg:mt-0">
+        <header class="flex justify-between items-center mb-8 px-2">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight">NextMove</h1>
+                <p id="userWelcome" class="text-violet-400 text-xs tracking-widest uppercase">SYSTEM STANDBY</p>
+            </div>
+            <button onclick="showProfile()" class="text-xs bg-gray-800 px-3 py-1 rounded hover:bg-gray-700 border border-gray-600">Edit Profile</button>
+        </header>
+
+        <div id="inputCard" class="glass-panel rounded-2xl p-6 mb-6">
+            <textarea id="scenarioInput" rows="3" class="w-full bg-transparent border-none text-lg text-white placeholder-gray-600 focus:outline-none resize-none" placeholder="What risky move are you planning?"></textarea>
+            <div class="flex justify-end mt-2">
+                <button onclick="runSimulation('default')" class="bg-white text-black font-bold py-2 px-6 rounded-lg hover:bg-gray-200 transition">Simulate</button>
+            </div>
+        </div>
+
+        <div id="loading" class="hidden fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+            <div class="w-64 h-1 bg-gray-800 relative overflow-hidden rounded">
+                <div class="absolute inset-0 bg-violet-500 animate-pulse"></div>
+            </div>
+            <p class="mt-4 text-violet-300 font-mono text-sm">ACCESSING NEURAL NETWORK...</p>
+        </div>
+
+        <div id="results" class="hidden glass-panel rounded-2xl p-1 overflow-hidden relative">
+            <div class="flex border-b border-gray-800 bg-black/20">
+                <button id="tabReality" onclick="switchTab('default')" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white border-b-2 border-transparent">💀 REALITY</button>
+                <button id="tabDiplomacy" onclick="switchTab('diplomatic')" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white border-b-2 border-transparent">✨ DIPLOMATIC FIX</button>
+            </div>
+
+            <div class="p-6">
+                <div class="flex justify-end mb-4">
+                    <span id="modelBadge" class="text-[10px] font-mono border px-2 py-1 rounded-full opacity-0 transition-opacity duration-500">
+                        ● INITIALIZING
+                    </span>
+                </div>
+
+                <div class="flex items-center justify-between mb-8">
+                    <div class="relative w-24 h-24 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-full h-full transform -rotate-90">
+                            <circle cx="50%" cy="50%" r="40" stroke="rgba(255,255,255,0.1)" stroke-width="8" fill="none"/>
+                            <circle id="riskCircle" cx="50%" cy="50%" r="40" stroke="#ef4444" stroke-width="8" fill="none" stroke-dasharray="251" stroke-dashoffset="251" class="transition-all duration-1000"/>
+                        </svg>
+                        <div class="absolute text-center">
+                            <span id="riskScore" class="block text-xl font-bold">0%</span>
+                            <span class="text-[10px] text-gray-400 uppercase">Risk</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 ml-6">
+                        <h3 class="text-gray-400 text-xs uppercase font-bold mb-1">Projected Outcome</h3>
+                        <p id="predictionText" class="text-lg font-light leading-snug"></p>
+                    </div>
+                </div>
+                <div id="scriptContainer" class="space-y-4 mb-6 max-h-80 overflow-y-auto pr-2 custom-scrollbar"></div>
+                <div id="adviceBox" class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 hidden">
+                    <h4 class="text-blue-400 text-xs font-bold uppercase mb-2">Strategic Moves</h4>
+                    <ul id="adviceList" class="space-y-1 text-sm text-gray-300"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="onboardingModal" class="fixed inset-0 bg-black/95 z-50 flex items-center justify-center hidden">
+        <div class="glass-panel w-full max-w-md p-8 rounded-2xl m-4 relative">
+            
+            <button id="modalCloseBtn" onclick="closeProfile()" class="absolute top-4 right-4 text-gray-500 hover:text-white transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+
+            <h2 class="text-2xl font-bold mb-4 text-violet-300">Identity Protocol</h2>
+            <div class="space-y-3">
+                <input id="userName" type="text" placeholder="Name" class="w-full bg-gray-800 p-3 rounded text-white border border-gray-700 outline-none focus:border-violet-500">
+                <input id="userAge" type="number" placeholder="Age" class="w-full bg-gray-800 p-3 rounded text-white border border-gray-700 outline-none focus:border-violet-500">
+                <input id="userRole" type="text" placeholder="Role (e.g. Student, CEO)" class="w-full bg-gray-800 p-3 rounded text-white border border-gray-700 outline-none focus:border-violet-500">
+                <select id="userVibe" class="w-full bg-gray-800 p-3 rounded text-white border border-gray-700 outline-none focus:border-violet-500">
+                    <option value="Balanced">Balanced</option>
+                    <option value="Cautious">Cautious</option>
+                    <option value="Chaotic">Chaotic</option>
+                </select>
+                <button onclick="saveProfile()" class="w-full bg-violet-600 hover:bg-violet-500 py-3 rounded font-bold mt-2">Initialize</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:5002/casuality-3d/us-central1/predictOutcome";
+        let userProfile = JSON.parse(localStorage.getItem('nextmove_profile')) || null;
+        let history = JSON.parse(localStorage.getItem('nextmove_full_history')) || [];
+        let activeScenarioId = null; 
+        let activeScenarioText = "";
+
+        window.onload = () => {
+            if (!userProfile) {
+          
+                document.getElementById('onboardingModal').classList.remove('hidden');
+                document.getElementById('modalCloseBtn').classList.add('hidden');
+            } else {
+                updateUIProfile();
+            }
+            renderHistory();
+        };
+
+        function toggleSidebar() { document.getElementById('mobileSidebar').classList.toggle('sidebar-closed'); document.getElementById('mobileSidebar').classList.toggle('sidebar-open'); }
+        
+        function saveProfile() {
+            userProfile = {
+                name: document.getElementById('userName').value,
+                age: document.getElementById('userAge').value,
+                role: document.getElementById('userRole').value,
+                vibe: document.getElementById('userVibe').value
+            };
+            localStorage.setItem('nextmove_profile', JSON.stringify(userProfile));
+            document.getElementById('onboardingModal').classList.add('hidden');
+            updateUIProfile();
+        }
+
+        function showProfile() { 
+          
+            document.getElementById('onboardingModal').classList.remove('hidden');
+            document.getElementById('modalCloseBtn').classList.remove('hidden');
+            
+        
+            if(userProfile) {
+                document.getElementById('userName').value = userProfile.name;
+                document.getElementById('userAge').value = userProfile.age;
+                document.getElementById('userRole').value = userProfile.role;
+                document.getElementById('userVibe').value = userProfile.vibe;
+            }
+        }
+
+        function closeProfile() {
+            document.getElementById('onboardingModal').classList.add('hidden');
+        }
+
+        function updateUIProfile() { document.getElementById('userWelcome').innerText = `OPERATOR: ${userProfile.name.toUpperCase()} // ${userProfile.role.toUpperCase()}`; }
+
+        async function runSimulation(mode) {
+            const inputField = document.getElementById('scenarioInput');
+            const inputText = inputField.value.trim();
+            if (!inputText && !activeScenarioText) return alert("Enter a scenario");
+
+            let isNewInput = false;
+            if (mode === 'default') {
+                if (inputText !== activeScenarioText) {
+                    activeScenarioText = inputText;
+                    activeScenarioId = Date.now();
+                    isNewInput = true;
+                }
+            }
+            const existingEntry = history.find(h => h.id === activeScenarioId);
+            if (existingEntry && existingEntry[mode]) {
+                renderResults(existingEntry[mode], mode);
+                return;
+            }
+
+            document.getElementById('loading').classList.remove('hidden');
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scenario: activeScenarioText, mode: mode, userProfile: userProfile })
+                });
+                const data = await response.json();
+                
+                if (data.error) throw new Error(data.error);
+
+                saveToHistory(activeScenarioId, activeScenarioText, mode, data);
+                renderResults(data, mode);
+
+            } catch (e) {
+                alert("System Error: " + e.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function switchTab(mode) {
+            if (!activeScenarioText) return;
+            updateTabStyles(mode);
+            runSimulation(mode);
+        }
+
+        function renderResults(data, mode) {
+            document.getElementById('results').classList.remove('hidden');
+            updateTabStyles(mode);
+
+            const badge = document.getElementById('modelBadge');
+            badge.classList.remove('opacity-0');
+            
+            let modelName = data.model_used || "Unknown Node";
+            let colorClass = "";
+            let borderColor = "";
+
+            if (modelName.includes("3-flash")) {
+                colorClass = "text-violet-400 bg-violet-500/10";
+                borderColor = "border-violet-500/30";
+                modelName = "● GEMINI 3.0 (PREVIEW)";
+            } else if (modelName.includes("2.5")) {
+                colorClass = "text-emerald-400 bg-emerald-500/10";
+                borderColor = "border-emerald-500/30";
+                modelName = "● GEMINI 2.5 (SPECIALIST)";
+            } else if (modelName.includes("2.0") || modelName.includes("exp")) {
+                colorClass = "text-blue-400 bg-blue-500/10";
+                borderColor = "border-blue-500/30";
+                modelName = "● GEMINI 2.0 (SPEED)";
+            } else {
+                colorClass = "text-yellow-400 bg-yellow-500/10";
+                borderColor = "border-yellow-500/30";
+                modelName = "⚡ GEMINI 1.5 (BACKUP)";
+            }
+            
+            badge.innerText = modelName;
+            badge.className = `text-[10px] font-mono border px-2 py-1 rounded-full transition-all duration-300 ${colorClass} ${borderColor}`;
+
+            const offset = 251 - (251 * data.risk_score / 100);
+            document.getElementById('riskCircle').style.strokeDashoffset = offset;
+            document.getElementById('riskScore').innerText = data.risk_score + "%";
+            
+            let color = mode === 'diplomatic' ? '#3b82f6' : (data.risk_score > 60 ? '#ef4444' : '#22c55e');
+            document.getElementById('riskCircle').setAttribute('stroke', color);
+
+            document.getElementById('predictionText').innerText = data.prediction;
+
+            const scriptBox = document.getElementById('scriptContainer');
+            scriptBox.innerHTML = '';
+            data.script.forEach(line => {
+                const isUser = line.speaker.toLowerCase().includes(userProfile.name.toLowerCase()) || line.speaker.toLowerCase().includes('user') || line.speaker.toLowerCase() === 'you';
+                scriptBox.innerHTML += `
+                    <div class="mb-3 ${isUser ? 'text-right' : 'text-left'}">
+                        <span class="text-xs font-bold uppercase text-gray-500 block mb-1">${line.speaker}</span>
+                        <span class="inline-block p-3 rounded-lg text-sm max-w-[85%] ${isUser ? 'bg-violet-600 text-white' : 'bg-gray-800 text-gray-300'}">
+                            ${line.line}
+                        </span>
+                    </div>`;
+            });
+
+            const adviceBox = document.getElementById('adviceBox');
+            if (data.tactical_advice) {
+                adviceBox.classList.remove('hidden');
+                document.getElementById('adviceList').innerHTML = data.tactical_advice.map(t => `<li>• ${t}</li>`).join('');
+            }
+        }
+
+        function updateTabStyles(mode) {
+            const tR = document.getElementById('tabReality');
+            const tD = document.getElementById('tabDiplomacy');
+            tR.className = mode === 'default' ? "flex-1 py-3 text-sm font-bold text-white border-b-2 border-red-500 bg-red-500/10" : "flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white border-b-2 border-transparent";
+            tD.className = mode === 'diplomatic' ? "flex-1 py-3 text-sm font-bold text-white border-b-2 border-blue-500 bg-blue-500/10" : "flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white border-b-2 border-transparent";
+        }
+
+        function saveToHistory(id, text, mode, resultData) {
+            let entryIndex = history.findIndex(h => h.id === id);
+            if (entryIndex > -1) {
+                if (mode === 'default') history[entryIndex].default = resultData;
+                else history[entryIndex].diplomatic = resultData;
+            } else {
+                let newEntry = { id: id, scenario: text };
+                newEntry[mode] = resultData;
+                history.unshift(newEntry);
+            }
+            if (history.length > 15) history.pop();
+            localStorage.setItem('nextmove_full_history', JSON.stringify(history));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const list = document.getElementById('historyList');
+            if (history.length === 0) { list.innerHTML = "<p class='text-center opacity-30 mt-4'>No scans yet</p>"; return; }
+            list.innerHTML = history.map(h => `<div onclick="loadFromHistory(${h.id})" class="p-3 rounded bg-gray-800/50 hover:bg-gray-700 cursor-pointer truncate border-l-2 border-transparent hover:border-violet-500 transition mb-2">${h.scenario}</div>`).join('');
+        }
+
+        function loadFromHistory(id) {
+            const entry = history.find(h => h.id === id);
+            if (!entry) return;
+            activeScenarioId = entry.id;
+            activeScenarioText = entry.scenario;
+            document.getElementById('scenarioInput').value = entry.scenario;
+            if (entry.default) renderResults(entry.default, 'default');
+            else if (entry.diplomatic) renderResults(entry.diplomatic, 'diplomatic');
+            if(window.innerWidth < 1024) toggleSidebar();
+        }
+
+        function clearHistory() { history = []; localStorage.removeItem('nextmove_full_history'); renderHistory(); }
+    </script>
+</body>
+</html>
